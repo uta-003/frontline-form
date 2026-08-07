@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniCheck - Portal Pengajuan Pemohon</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'unicheck-shared-system';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
+
+        let app, auth, db, currentUser = null;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (e) {
+            console.warn("Firebase Init Exception:", e);
+        }
+
+        async function initFrontendCloud() {
+            if (!auth || !db) {
+                if (window.updateStatusBadge) window.updateStatusBadge(false, "Local Offline");
+                return;
+            }
+            try {
+                const res = await signInAnonymously(auth);
+                currentUser = res.user;
+                if (currentUser) {
+                    if (window.updateStatusBadge) window.updateStatusBadge(true, "Cloud DB Terhubung");
+                    listenCloudData();
+                }
+            } catch (err) {
+                console.error("Auth Error:", err);
+                if (window.updateStatusBadge) window.updateStatusBadge(false, "Mode Lokal");
+            }
+        }
+
+        function listenCloudData() {
+            if (!db) return;
+            const reqCollection = collection(db, 'artifacts', appId, 'public', 'data', 'unicheck_requests');
+            onSnapshot(reqCollection, (snapshot) => {
+                const cloudData = [];
+                snapshot.forEach(docSnap => cloudData.push(docSnap.data()));
+                if (cloudData.length > 0) {
+                    window.allCloudData = cloudData;
+                }
+            });
+        }
+
+        window.saveToCloudDB = async function(requestObj) {
+            if (!currentUser || !db) return false;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'unicheck_requests', requestObj.id);
+                await setDoc(docRef, requestObj);
+                return true;
+            } catch(e) {
+                console.error("Gagal simpan ke Cloud:", e);
+                return false;
+            }
+        };
+
+        window.addEventListener('DOMContentLoaded', initFrontendCloud);
+    </script>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- Header Portal Pemohon -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-xl text-white shadow-md">
+                        <i class="fa-solid fa-paper-plane text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h1 class="font-extrabold text-lg leading-tight">UniCheck Portal Pemohon</h1>
+                            <span id="cloud-badge" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center space-x-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block animate-pulse"></span>
+                                <span id="cloud-text">Menghubungkan...</span>
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-slate-400">Form Pengajuan Cek Unit, Barang, & Kendaraan</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs bg-blue-500/20 text-blue-300 px-3 py-1.5 rounded-lg border border-blue-400/30 font-semibold">
+                        <i class="fa-solid fa-user-circle mr-1"></i> Form User / Karyawan
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8 flex-grow w-full space-y-8">
+
+        <!-- Hero Section -->
+        <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-blue-800/50">
+            <div class="relative z-10 space-y-2">
+                <span class="px-3 py-1 bg-blue-500/30 text-blue-200 text-xs font-bold rounded-full border border-blue-400/30 inline-block">Sistem Logistik Online</span>
+                <h2 class="text-2xl sm:text-3xl font-black tracking-tight">Form Pengajuan & Lacak Tiket</h2>
+                <p class="text-xs sm:text-sm text-slate-300 max-w-xl">Pilih kategori permohonan di bawah ini. Pengajuan Anda akan langsung terkirim ke Dashboard Admin secara realtime.</p>
+            </div>
+        </div>
+
+        <!-- Form Navigation Tabs -->
+        <div class="flex flex-wrap items-center justify-center gap-2 border-b border-slate-200 pb-4">
+            <button id="nav-cek" onclick="switchForm('cek')" class="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-amber-500 text-slate-900 shadow">
+                <i class="fa-solid fa-clipboard-check text-sm"></i>
+                <span>Cek Unit</span>
+            </button>
+            <button id="nav-barang" onclick="switchForm('barang')" class="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-slate-200 text-slate-700 hover:bg-slate-300">
+                <i class="fa-solid fa-boxes-packing text-sm"></i>
+                <span>Pengambilan Barang</span>
+            </button>
+            <button id="nav-ambil" onclick="switchForm('ambil')" class="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-slate-200 text-slate-700 hover:bg-slate-300">
+                <i class="fa-solid fa-key text-sm"></i>
+                <span>Ambil / Pinjam Unit</span>
+            </button>
+            <button id="nav-lacak" onclick="switchForm('lacak')" class="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-indigo-100 text-indigo-800 border border-indigo-300 hover:bg-indigo-200">
+                <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                <span>Lacak Status Tiket</span>
+            </button>
+        </div>
+
+        <!-- FORM 1: CEK UNIT -->
+        <div id="form-cek" class="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div class="flex items-center space-x-3 pb-4 border-b border-slate-100">
+                <div class="p-3 bg-amber-100 text-amber-700 rounded-xl">
+                    <i class="fa-solid fa-clipboard-check text-2xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-extrabold text-slate-800 text-lg">Form Pengajuan Cek Unit</h3>
+                    <p class="text-xs text-slate-500">Permohonan pemeriksaan teknis, perawatan, atau perbaikan unit</p>
+                </div>
+            </div>
+
+            <form onsubmit="submitFrontendForm(event, 'Cek Unit')" class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Nama Pemohon <span class="text-rose-500">*</span></label>
+                        <input type="text" name="applicantName" required placeholder="Nama Lengkap Anda" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Departemen / Divisi <span class="text-rose-500">*</span></label>
+                        <input type="text" name="department" required placeholder="Divisi Operasional / IT / dll" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">No. WhatsApp / Telepon <span class="text-rose-500">*</span></label>
+                        <input type="tel" name="phone" required placeholder="0812xxxxxxx" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Kategori Unit <span class="text-rose-500">*</span></label>
+                        <select name="unitCategory" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none">
+                            <option value="Kendaraan Operational">Kendaraan Operational (Mobil/Motor)</option>
+                            <option value="Alat Berat / Forklift">Alat Berat / Forklift</option>
+                            <option value="Mesin Produksi">Mesin Produksi</option>
+                            <option value="Genset & Electrical">Genset & Electrical</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Detail Unit (Plat No / Serial Number / Model) <span class="text-rose-500">*</span></label>
+                    <input type="text" name="itemDetail" required placeholder="Contoh: Toyota Hilux Double Cab (B 9102 XZ)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Tingkat Urgensi</label>
+                        <select name="priority" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none">
+                            <option value="Normal">Normal (1-3 Hari)</option>
+                            <option value="Mendesak (Urgent)">Mendesak (Hari Ini)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Tanggal Rencana Cek <span class="text-rose-500">*</span></label>
+                        <input type="date" name="targetDate" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Lokasi Unit & Indikasi Keluhan <span class="text-rose-500">*</span></label>
+                    <textarea name="notes" rows="3" required placeholder="Tuliskan lokasi keberadaan unit dan keluhan/perbaikan yang dibutuhkan..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:bg-white focus:outline-none"></textarea>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold rounded-xl shadow transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Kirim Permohonan Cek Unit</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- FORM 2: AMBIL BARANG -->
+        <div id="form-barang" class="hidden bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div class="flex items-center space-x-3 pb-4 border-b border-slate-100">
+                <div class="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
+                    <i class="fa-solid fa-boxes-packing text-2xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-extrabold text-slate-800 text-lg">Form Pengambilan Barang / Material</h3>
+                    <p class="text-xs text-slate-500">Pengeluaran perkakas, sparepart, atau persediaan gudang</p>
+                </div>
+            </div>
+
+            <form onsubmit="submitFrontendForm(event, 'Pengambilan Barang')" class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Nama Pemohon <span class="text-rose-500">*</span></label>
+                        <input type="text" name="applicantName" required placeholder="Nama Pemohon" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Departemen <span class="text-rose-500">*</span></label>
+                        <input type="text" name="department" required placeholder="Divisi / Proyek" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">No. WhatsApp / HP <span class="text-rose-500">*</span></label>
+                        <input type="tel" name="phone" required placeholder="0819xxxxxxx" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Supervisor Penyetuju <span class="text-rose-500">*</span></label>
+                        <input type="text" name="supervisor" required placeholder="Nama Atasan Langsung" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Nama Barang / Material <span class="text-rose-500">*</span></label>
+                    <input type="text" name="itemDetail" required placeholder="Contoh: SSD Kingston 512GB & Cable Ties" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="col-span-2">
+                        <label class="block font-bold text-slate-700 mb-1">Jumlah <span class="text-rose-500">*</span></label>
+                        <input type="number" min="1" name="quantity" required placeholder="1" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Satuan <span class="text-rose-500">*</span></label>
+                        <select name="unit" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                            <option value="Pcs">Pcs</option>
+                            <option value="Unit">Unit</option>
+                            <option value="Box">Box</option>
+                            <option value="Set">Set</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Tingkat Urgensi</label>
+                        <select name="priority" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                            <option value="Normal">Normal</option>
+                            <option value="Mendesak (Urgent)">Mendesak (Urgent)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Tanggal Ambil <span class="text-rose-500">*</span></label>
+                        <input type="date" name="targetDate" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Peruntukan / Kegunaan <span class="text-rose-500">*</span></label>
+                    <textarea name="notes" rows="3" required placeholder="Jelaskan kebutuhan penggunaan barang..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none"></textarea>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-extrabold rounded-xl shadow transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Kirim Permohonan Barang</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- FORM 3: AMBIL UNIT -->
+        <div id="form-ambil" class="hidden bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div class="flex items-center space-x-3 pb-4 border-b border-slate-100">
+                <div class="p-3 bg-sky-100 text-sky-700 rounded-xl">
+                    <i class="fa-solid fa-key text-2xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-extrabold text-slate-800 text-lg">Form Permohonan Ambil / Pinjam Unit</h3>
+                    <p class="text-xs text-slate-500">Peminjaman kunci & kendaraan operasional / alat kerja</p>
+                </div>
+            </div>
+
+            <form onsubmit="submitFrontendForm(event, 'Ambil Unit')" class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Nama Driver / Pengambil <span class="text-rose-500">*</span></label>
+                        <input type="text" name="applicantName" required placeholder="Nama Lengkap Pengambil" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Departemen / Perusahaan <span class="text-rose-500">*</span></label>
+                        <input type="text" name="department" required placeholder="Departemen" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">No. WhatsApp / HP <span class="text-rose-500">*</span></label>
+                        <input type="tel" name="phone" required placeholder="0813xxxxxxx" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">No. KTP / SIM / ID Card <span class="text-rose-500">*</span></label>
+                        <input type="text" name="identityCard" required placeholder="Nomor Identitas Diri" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Unit / Plat Nomor <span class="text-rose-500">*</span></label>
+                        <input type="text" name="itemDetail" required placeholder="Contoh: Isuzu Elf Box (B 8820 K)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">No. SPK / Surat Tugas <span class="text-rose-500">*</span></label>
+                        <input type="text" name="spkNumber" required placeholder="Nomor Surat Tugas" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Tingkat Urgensi</label>
+                        <select name="priority" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                            <option value="Normal">Normal</option>
+                            <option value="Mendesak (Urgent)">Mendesak (Urgent)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Tanggal Ambil <span class="text-rose-500">*</span></label>
+                        <input type="date" name="targetDate" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Rute & Tujuan Operasional <span class="text-rose-500">*</span></label>
+                    <textarea name="notes" rows="3" required placeholder="Sebutkan rute tujuan penggunaan unit..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none"></textarea>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-sky-500 hover:bg-sky-600 text-slate-900 font-extrabold rounded-xl shadow transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Kirim Permohonan Ambil Unit</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- FORM 4: LACAK TIKET -->
+        <div id="form-lacak" class="hidden bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div class="text-center space-y-1">
+                <h3 class="font-extrabold text-slate-800 text-lg">Cek Status Tiket Pengajuan</h3>
+                <p class="text-xs text-slate-500">Masukkan Kode Tiket yang Anda dapatkan saat mengirim form (Contoh: CHK-88201)</p>
+            </div>
+
+            <div class="flex space-x-2 max-w-md mx-auto">
+                <input type="text" id="track-input" placeholder="Masukkan Kode Tiket..." class="flex-grow p-3 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm uppercase focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <button onclick="trackTicket()" class="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow transition">Cari</button>
+            </div>
+
+            <div id="track-result" class="hidden p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 text-xs max-w-md mx-auto"></div>
+        </div>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center space-x-3 max-w-md">
+            <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-xl"></i>
+            <span id="toast-message" class="text-xs font-medium">Notifikasi...</span>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto text-center text-xs text-slate-500">
+        <p>&copy; 2026 UniCheck Logistics System - Frontend Portal</p>
+    </footer>
+
+    <script>
+        const LOCAL_STORAGE_KEY = 'unicheck_requests_db';
+        window.allCloudData = [];
+
+        window.updateStatusBadge = function(isConnected, text) {
+            const badge = document.getElementById('cloud-badge');
+            const badgeText = document.getElementById('cloud-text');
+            if (!badge || !badgeText) return;
+            badgeText.textContent = text;
+            badge.className = isConnected 
+                ? "px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700 flex items-center space-x-1"
+                : "px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-950 text-amber-300 border border-amber-700 flex items-center space-x-1";
+        };
+
+        function switchForm(type) {
+            ['cek', 'barang', 'ambil', 'lacak'].forEach(t => {
+                const f = document.getElementById(`form-${t}`);
+                const b = document.getElementById(`nav-${t}`);
+                if (t === type) {
+                    f.classList.remove('hidden');
+                    b.className = "px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-amber-500 text-slate-900 shadow";
+                } else {
+                    f.classList.add('hidden');
+                    b.className = "px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-slate-200 text-slate-700 hover:bg-slate-300";
+                }
+            });
+        }
+
+        function showToast(msg, isSuccess = true) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            document.getElementById('toast-icon').className = isSuccess ? 'fa-solid fa-circle-check text-emerald-400 text-xl' : 'fa-solid fa-triangle-exclamation text-rose-400 text-xl';
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        function generateTicketId(type) {
+            const prefix = type === 'Cek Unit' ? 'CHK' : (type === 'Pengambilan Barang' ? 'PGB' : 'AMB');
+            return `${prefix}-${Math.floor(10000 + Math.random() * 90000)}`;
+        }
+
+        async function submitFrontendForm(e, type) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const dataObj = Object.fromEntries(formData.entries());
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0] + ' ' + now.toTimeString().split(' ')[0].substring(0, 5);
+
+            const newRequest = {
+                id: generateTicketId(type),
+                type: type,
+                ...dataObj,
+                status: 'Pending',
+                createdAt: dateStr
+            };
+
+            // Save to Cloud
+            if (typeof window.saveToCloudDB === 'function') {
+                await window.saveToCloudDB(newRequest);
+            }
+
+            // Fallback Local Storage
+            const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+            localData.unshift(newRequest);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
+
+            e.target.reset();
+            showToast(`Pengajuan Berhasil! Kode Tiket: ${newRequest.id}`);
+
+            document.getElementById('track-input').value = newRequest.id;
+            switchForm('lacak');
+            trackTicket();
+        }
+
+        function trackTicket() {
+            const ticketInput = document.getElementById('track-input').value.trim().toUpperCase();
+            const container = document.getElementById('track-result');
+            if (!ticketInput) return showToast('Masukkan Kode Tiket terlebih dahulu', false);
+
+            const allData = window.allCloudData.length > 0 ? window.allCloudData : JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+            const found = allData.find(r => r.id && r.id.toUpperCase() === ticketInput);
+
+            container.classList.remove('hidden');
+            if (!found) {
+                container.innerHTML = `<div class="text-rose-600 font-bold text-center"><i class="fa-solid fa-xmark mr-1"></i> Tiket "${ticketInput}" tidak ditemukan</div>`;
+                return;
+            }
+
+            let badge = 'bg-amber-100 text-amber-800 border-amber-300';
+            if (found.status === 'Disetujui') badge = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+            if (found.status === 'Selesai') badge = 'bg-indigo-100 text-indigo-800 border-indigo-300';
+            if (found.status === 'Ditolak') badge = 'bg-rose-100 text-rose-800 border-rose-300';
+
+            container.innerHTML = `
+                <div class="flex justify-between items-start border-b pb-2">
+                    <div>
+                        <span class="font-mono text-sm font-black text-blue-600">#${found.id}</span>
+                        <p class="font-bold text-slate-800 text-sm mt-0.5">${found.itemDetail}</p>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${badge}">${found.status}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-slate-600">
+                    <p><strong>Pemohon:</strong> ${found.applicantName}</p>
+                    <p><strong>Jenis:</strong> ${found.type}</p>
+                    <p><strong>Tgl Pengajuan:</strong> ${found.createdAt || '-'}</p>
+                    <p><strong>Rencana:</strong> ${found.targetDate || '-'}</p>
+                </div>
+                ${found.notes ? `<p class="bg-white p-2 rounded border"><strong>Catatan:</strong> ${found.notes}</p>` : ''}
+            `;
+        }
+    </script>
+</body>
+</html>
